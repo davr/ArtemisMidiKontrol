@@ -13,9 +13,9 @@ from pygame.locals import *
 # Controls:
 # 0x00 - 0x07: sliders
 # 0x10 - 0x17: knobs
-# 0x20 - 0x27: S
-# 0x30 - 0x37: M
-# 0x40 - 0x47: R
+# 0x20 - 0x27: S buttons
+# 0x30 - 0x37: M buttons
+# 0x40 - 0x47: R buttons
 
 # magic numbers
 MOUSEEVENTF_LEFTDOWN = 0x0002
@@ -33,10 +33,12 @@ class AMK:
         self.screenW = pygame.display.Info().current_w
         self.screenH = pygame.display.Info().current_h
 
+    # move the mouse to specific location
     def move(self, x, y):
         print "move: "+str(x)+","+str(y)
         ctypes.windll.user32.mouse_event(MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE, int((x*65535)/self.screenW), int((y*65535)/self.screenH),0,0)
 
+    # click the mouse at a specific location
     def click(self, x, y):
         ctypes.windll.user32.mouse_event(MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE, int((x*65535)/self.screenW), int((y*65535)/self.screenH),0,0)
         ctypes.windll.user32.mouse_event(MOUSEEVENTF_LEFTDOWN,x,y,0,0)
@@ -49,11 +51,6 @@ class AMK:
         print "---------------"
         in_id = None
         out_id = None
-        for i in range(500):
-            x = 500+math.sin(math.pi*i/1000.0)*500
-            y = 500+math.cos(i/10.0)*100
-            self.move(x,y)
-            time.sleep(.001)
         for i in range( pygame.midi.get_count() ):
             r = pygame.midi.get_device_info(i)
             (interf, name, input, output, opened) = r
@@ -71,8 +68,10 @@ class AMK:
 
             print ("%2i: interface :%s:, name :%s:, opened :%s:  %s" %
                    (i, interf, name, opened, in_out))
+
         return (in_id, out_id)
 
+    # turn a LED on or off
     def light(self, btn, on):
         if on:
             out = 127
@@ -81,6 +80,7 @@ class AMK:
         self.midi_out.write_short(176, btn, out)
 
     # Update LEDs based on heat of each station
+    # More heat = more LEDs turned on. max heat = set blink flag
     def updateLEDs(self):
         for i, value in enumerate(self.heat):
             self.blinken[i] = False
@@ -103,7 +103,7 @@ class AMK:
             else: # overheatin' time to blinken
                 self.blinken[i] = True
 
-    # Blink LEDs on and off if needed
+    # Blink LEDs on and off if their blinken flag is set
     def blinkLEDs(self):
         for i, blink in enumerate(self.blinken):
             if blink:
@@ -152,26 +152,37 @@ class AMK:
 
         # Loop forever and ever
         while True:
+            # waste time so that we don't eat too much CPU
             pygame.time.wait(1)
+
             for event in pygame.event.get():
                 if event.type == pygame.QUIT: 
                     sys.exit()
 
             self.blinkLEDs()
 
-
+            # Look for midi events
             if midi_in.poll():
                 midi_events = midi_in.read(10)
                 midi_evs = pygame.midi.midis2events(midi_events, midi_in.device_id)
+
+                # process all recieved events
                 for me in midi_evs:
+                    # store event data
                     datas[me.data1] = me.data2
+
+                    # map midi event 0x10 and 0x17 (first and last knob) to mouse X and Y
                     if me.data1 == 0x10 or me.data1 == 0x17:
                         self.move(datas[0x10]*10, (127-datas[0x17])*10)
                     print("\n")
                     print(str(datas[0x00:0x08]))
                     print(str(datas[0x10:0x18]))
-                    print "Ev: "+str(me.data1)+" - "+str(me.data2)
+                    print "Ev: 0x%02x - %d" % (me.data1, me.data2)
+
+                # for testing: store heat values as the values of the 8 sliders
                 self.heat = datas[0:8]
+
+                # update LEDs in response to potential change in heat values
                 self.updateLEDs()
                 
                         
