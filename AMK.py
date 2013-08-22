@@ -34,8 +34,8 @@ MOUSEEVENTF_LEFTUP   = 0x0004
 MOUSEEVENTF_ABSOLUTE = 0x8000
 MOUSEEVENTF_MOVE     = 0x0001
 
-SLIDETOP = 775.0
-SLIDEBOT = 525.0
+SLIDEBOT = 775.0
+SLIDETOP = 525.0
 SLIDELEFT = 51
 SLIDESPACE = 157
 
@@ -62,14 +62,21 @@ class AMK:
     # Set slider #id to #value (0-300)
     def setSlider(self, id, value):
         x = SLIDELEFT + SLIDESPACE * id
-        y = int(((value / 300.0) * (SLIDETOP-SLIDEBOT)) + SLIDEBOT)
+        y = value * (SLIDEBOT - SLIDETOP)
+        y /= 300
+        y = SLIDEBOT - y
+        print "%d -> %d" % (value, y)
         self.click(x, y)
 
     # Set coolant #id to #value (0-8)
     # If we set to 0, we need to first set to 1 then click arrow down to 0
     def setCoolant(self, id, value):
+        if self.coolant[id] == value:
+            return
+
         if value == 0:
-            setCoolant(id, 1)
+            self.coolant[id] = 0
+            self.setCoolant(id, 1)
 
         x = COOLLEFT + COOLXSPACE * id
         y = COOLTOP + COOLYSPACE * (8-value)
@@ -77,14 +84,15 @@ class AMK:
 
     # move the mouse to specific location
     def move(self, x, y):
-        print "move: "+str(x)+","+str(y)
         ctypes.windll.user32.mouse_event(MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE, int((x*65535)/self.screenW), int((y*65535)/self.screenH),0,0)
 
     # click the mouse at a specific location
     def click(self, x, y):
         ctypes.windll.user32.mouse_event(MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE, int((x*65535)/self.screenW), int((y*65535)/self.screenH),0,0)
-#        ctypes.windll.user32.mouse_event(MOUSEEVENTF_LEFTDOWN,x,y,0,0)
-#        ctypes.windll.user32.mouse_event(MOUSEEVENTF_LEFTUP,x,y,0,0)
+        pygame.time.wait(10)
+        ctypes.windll.user32.mouse_event(MOUSEEVENTF_LEFTDOWN,int(x),int(y),0,0)
+        pygame.time.wait(10)
+        ctypes.windll.user32.mouse_event(MOUSEEVENTF_LEFTUP,int(x),int(y),0,0)
 
 # Y: 484 - 525
 # X: 85 + 157*n
@@ -95,9 +103,10 @@ class AMK:
             x = HEATLEFT + HEATSPACE*i
             total = 0
             for y in range(HEATBOT, HEATTOP, -1):
-                if sum(px[x,y]) > 300:
+                if sum(px[x,y]) > 200:
                     total+=1
             self.heat[i] = 100 * total/(HEATBOT - HEATTOP)
+        print "Heat: " + str(self.heat)
 
 
     # both display all attached midi devices, and look for ones matching nanoKONTROL2
@@ -192,7 +201,7 @@ class AMK:
         if out_device_id is None:
             out_device_id = pygame.midi.get_default_output_id()
 
-        #midi_in = self.midi_in = pygame.midi.Input( in_device_id )
+        midi_in = self.midi_in = pygame.midi.Input( in_device_id )
         
         print "using input  id: %s" % in_device_id
 
@@ -208,6 +217,10 @@ class AMK:
 
         ctr = 0
 
+        coolers = dict(zip(range(0,8), [0]*8))
+        self.coolant = dict(zip(range(0,8), [0]*8))
+        self.sliders = dict(zip(range(0,8), [0]*8))
+
         # Loop forever and ever
         while True:
             # waste time so that we don't eat too much CPU
@@ -219,30 +232,45 @@ class AMK:
 
             self.blinkLEDs()
 
-            self.getHeat()
-
             ctr += 1
-            if ctr > 500:
+            if ctr > 200:
                 self.getHeat()
                 self.updateLEDs()
                 ctr = 0
 
             # Look for midi events
             if midi_in.poll():
-                midi_events = midi_in.read(10)
+                midi_events = midi_in.read(100)
                 midi_evs = pygame.midi.midis2events(midi_events, midi_in.device_id)
 
                 # process all recieved events
+                sliders = {}
+                coolers = {}
+                changedCoolers = False
                 for me in midi_evs:
                     # store event data
                     datas[me.data1] = me.data2
 
-                    # map midi event 0x10 and 0x17 (first and last knob) to mouse X and Y
-                    if me.data1 == 0x10 or me.data1 == 0x17:
-                        self.move(datas[0x10]*10, (127-datas[0x17])*10)
+                    # map midi sliders to engineering sliders
+                    if me.data1 >= 0x00 and me.data1 <= 0x07:
+                        sliders[me.data1] = me.data2 * 300/127
 
-                
-                        
+                    # map midi knobs to engineering coolant
+                    if me.data1 >= 0x10 and me.data1 <= 0x17:
+                        newval = math.floor(me.data2 * 8 / 127.0)
+                        coolers[me.data1 - 0x10] = newval
+                        changedCoolers = True
+
+                print "Slides: " + str(sliders)
+                print "Cools: " + str(coolers)
+
+                for id,value in sliders.iteritems():
+                        self.setSlider(id, value)
+
+                if changedCoolers:
+                        for id,value in coolers.iteritems():
+                                self.setCoolant(id, value)
+
 
 if __name__ == '__main__':
     am = AMK()
