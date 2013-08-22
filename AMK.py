@@ -83,8 +83,8 @@ class AMK:
     # click the mouse at a specific location
     def click(self, x, y):
         ctypes.windll.user32.mouse_event(MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE, int((x*65535)/self.screenW), int((y*65535)/self.screenH),0,0)
-        ctypes.windll.user32.mouse_event(MOUSEEVENTF_LEFTDOWN,x,y,0,0)
-        ctypes.windll.user32.mouse_event(MOUSEEVENTF_LEFTUP,x,y,0,0)
+#        ctypes.windll.user32.mouse_event(MOUSEEVENTF_LEFTDOWN,x,y,0,0)
+#        ctypes.windll.user32.mouse_event(MOUSEEVENTF_LEFTUP,x,y,0,0)
 
 # Y: 484 - 525
 # X: 85 + 157*n
@@ -206,10 +206,12 @@ class AMK:
         self.last = pygame.time.get_ticks()
         self.heat = [0]*8
 
+        ctr = 0
+
         # Loop forever and ever
         while True:
             # waste time so that we don't eat too much CPU
-            pygame.time.wait(1000)
+            pygame.time.wait(1)
 
             for event in pygame.event.get():
                 if event.type == pygame.QUIT: 
@@ -219,8 +221,11 @@ class AMK:
 
             self.getHeat()
 
-            # update LEDs in response to potential change in heat values
-            self.updateLEDs()
+            ctr += 1
+            if ctr > 500:
+                self.getHeat()
+                self.updateLEDs()
+                ctr = 0
 
             # Look for midi events
             if midi_in.poll():
