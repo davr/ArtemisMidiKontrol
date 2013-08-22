@@ -6,6 +6,7 @@ import array
 import ctypes
 import math
 import time
+import ImageGrab
 from os import popen
 from array import array
 from pygame.locals import *
@@ -17,11 +18,36 @@ from pygame.locals import *
 # 0x30 - 0x37: M buttons
 # 0x40 - 0x47: R buttons
 
+# Slider location:
+# Y: 525 - 775
+# X: 51 + 157*n
+# Coolant: (to get to 0, have to click 1 then 0)
+# Y: 577 + 26*(8-n)
+# X: 94 + 157*n
+# Heat:
+# Y: 484 - 525
+# X: 85 + 157*n
+
 # magic numbers
 MOUSEEVENTF_LEFTDOWN = 0x0002
 MOUSEEVENTF_LEFTUP   = 0x0004
 MOUSEEVENTF_ABSOLUTE = 0x8000
 MOUSEEVENTF_MOVE     = 0x0001
+
+SLIDETOP = 775.0
+SLIDEBOT = 525.0
+SLIDELEFT = 51
+SLIDESPACE = 157
+
+COOLTOP = 577
+COOLYSPACE = 26
+COOLLEFT = 94
+COOLXSPACE = 157
+
+HEATTOP = 485
+HEATBOT = 524
+HEATLEFT = 85
+HEATSPACE = 157
 
 class AMK:
     
@@ -33,6 +59,22 @@ class AMK:
         self.screenW = pygame.display.Info().current_w
         self.screenH = pygame.display.Info().current_h
 
+    # Set slider #id to #value (0-300)
+    def setSlider(self, id, value):
+        x = SLIDELEFT + SLIDESPACE * id
+        y = int(((value / 300.0) * (SLIDETOP-SLIDEBOT)) + SLIDEBOT)
+        self.click(x, y)
+
+    # Set coolant #id to #value (0-8)
+    # If we set to 0, we need to first set to 1 then click arrow down to 0
+    def setCoolant(self, id, value):
+        if value == 0:
+            setCoolant(id, 1)
+
+        x = COOLLEFT + COOLXSPACE * id
+        y = COOLTOP + COOLYSPACE * (8-value)
+        self.click(x, y)
+
     # move the mouse to specific location
     def move(self, x, y):
         print "move: "+str(x)+","+str(y)
@@ -43,6 +85,19 @@ class AMK:
         ctypes.windll.user32.mouse_event(MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE, int((x*65535)/self.screenW), int((y*65535)/self.screenH),0,0)
         ctypes.windll.user32.mouse_event(MOUSEEVENTF_LEFTDOWN,x,y,0,0)
         ctypes.windll.user32.mouse_event(MOUSEEVENTF_LEFTUP,x,y,0,0)
+
+# Y: 484 - 525
+# X: 85 + 157*n
+    def getHeat(self):
+        px=ImageGrab.grab().load()
+        color = 0
+        for i in range(0,8):
+            x = HEATLEFT + HEATSPACE*i
+            total = 0
+            for y in range(HEATBOT, HEATTOP, -1):
+                if sum(px[x,y]) > 300:
+                    total+=1
+            self.heat[i] = 100 * total/(HEATBOT - HEATTOP)
 
 
     # both display all attached midi devices, and look for ones matching nanoKONTROL2
@@ -84,19 +139,19 @@ class AMK:
     def updateLEDs(self):
         for i, value in enumerate(self.heat):
             self.blinken[i] = False
-            if value < 5:
+            if value < 20:
                 self.light(0x40 + i, False)
                 self.light(0x30 + i, False)
                 self.light(0x20 + i, False)
-            elif value < 42:
+            elif value < 40:
                 self.light(0x40 + i, True)
                 self.light(0x30 + i, False)
                 self.light(0x20 + i, False)
-            elif value < 84:
+            elif value < 60:
                 self.light(0x40 + i, True)
                 self.light(0x30 + i, True)
                 self.light(0x20 + i, False)
-            elif value < 120:
+            elif value < 80:
                 self.light(0x40 + i, True)
                 self.light(0x30 + i, True)
                 self.light(0x20 + i, True)
@@ -137,7 +192,7 @@ class AMK:
         if out_device_id is None:
             out_device_id = pygame.midi.get_default_output_id()
 
-        midi_in = self.midi_in = pygame.midi.Input( in_device_id )
+        #midi_in = self.midi_in = pygame.midi.Input( in_device_id )
         
         print "using input  id: %s" % in_device_id
 
@@ -149,17 +204,23 @@ class AMK:
         self.blinken = [False]*8
         self.datas = datas = [0]*0xFF
         self.last = pygame.time.get_ticks()
+        self.heat = [0]*8
 
         # Loop forever and ever
         while True:
             # waste time so that we don't eat too much CPU
-            pygame.time.wait(1)
+            pygame.time.wait(1000)
 
             for event in pygame.event.get():
                 if event.type == pygame.QUIT: 
                     sys.exit()
 
             self.blinkLEDs()
+
+            self.getHeat()
+
+            # update LEDs in response to potential change in heat values
+            self.updateLEDs()
 
             # Look for midi events
             if midi_in.poll():
@@ -174,16 +235,7 @@ class AMK:
                     # map midi event 0x10 and 0x17 (first and last knob) to mouse X and Y
                     if me.data1 == 0x10 or me.data1 == 0x17:
                         self.move(datas[0x10]*10, (127-datas[0x17])*10)
-                    print("\n")
-                    print(str(datas[0x00:0x08]))
-                    print(str(datas[0x10:0x18]))
-                    print "Ev: 0x%02x - %d" % (me.data1, me.data2)
 
-                # for testing: store heat values as the values of the 8 sliders
-                self.heat = datas[0:8]
-
-                # update LEDs in response to potential change in heat values
-                self.updateLEDs()
                 
                         
 
