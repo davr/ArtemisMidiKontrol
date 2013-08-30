@@ -71,16 +71,28 @@ class AMK:
     # Set coolant #id to #value (0-8)
     # If we set to 0, we need to first set to 1 then click arrow down to 0
     def setCoolant(self, id, value):
-        if self.coolant[id] == value:
-            return
 
         if value == 0:
             self.coolant[id] = 0
             self.setCoolant(id, 1)
 
+        if self.coolant[id] == value:
+            return
+
         x = COOLLEFT + COOLXSPACE * id
         y = COOLTOP + COOLYSPACE * (8-value)
         self.click(x, y)
+
+    def coolUp(self, id):
+        x = COOLLEFT + COOLXSPACE * id
+        y = COOLTOP - COOLYSPACE
+        self.click(x, y)
+
+    def coolDown(self, id):
+        x = COOLLEFT + COOLXSPACE * id
+        y = COOLTOP + COOLYSPACE * 8
+        self.click(x, y)
+        
 
     # move the mouse to specific location
     def move(self, x, y):
@@ -260,6 +272,12 @@ class AMK:
                         newval = math.floor(me.data2 * 8 / 127.0)
                         coolers[me.data1 - 0x10] = newval
                         changedCoolers = True
+
+                    if me.data1 >= 0x20 and me.data1 <= 0x27 and me.data2 == 127:
+                        self.coolUp(me.data1 - 0x20)
+
+                    if me.data1 >= 0x40 and me.data1 <= 0x47 and me.data2 == 127:
+                        self.coolDown(me.data1 - 0x40)
 
                 print "Slides: " + str(sliders)
                 print "Cools: " + str(coolers)
