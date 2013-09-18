@@ -49,6 +49,14 @@ HEATBOT = 524
 HEATLEFT = 85
 HEATSPACE = 157
 
+
+class _point_t(ctypes.Structure):
+    _fields_ = [
+                ('x',  ctypes.c_long),
+                ('y',  ctypes.c_long),
+               ]
+
+
 class AMK:
     
     def __init__(self, width=640,height=480):
@@ -98,13 +106,35 @@ class AMK:
     def move(self, x, y):
         ctypes.windll.user32.mouse_event(MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE, int((x*65535)/self.screenW), int((y*65535)/self.screenH),0,0)
 
+    def move2(self, x, y):
+        ctypes.windll.user32.SetCursorPos(x, y)
+
     # click the mouse at a specific location
     def click(self, x, y):
-        ctypes.windll.user32.mouse_event(MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE, int((x*65535)/self.screenW), int((y*65535)/self.screenH),0,0)
+        self.move(x,y)
         pygame.time.wait(10)
         ctypes.windll.user32.mouse_event(MOUSEEVENTF_LEFTDOWN,int(x),int(y),0,0)
         pygame.time.wait(10)
         ctypes.windll.user32.mouse_event(MOUSEEVENTF_LEFTUP,int(x),int(y),0,0)
+
+    def get_screen_size():
+        '''
+        screen size in Windows retrun w,h of size
+        '''
+        w = ctypes.windll.user32.GetSystemMetrics(0)
+        h = ctypes.windll.user32.GetSystemMetrics(1)
+        return w,h
+                   
+    def get_cursor_position():
+        '''getting position cursor in windows return coords x,y
+        >(1024,768)
+        '''
+        point = _point_t()
+        result = ctypes.windll.user32.GetCursorPos(ctypes.pointer(point))
+        if result:
+          return (point.x, point.y)
+        else:
+          return None
 
 # Y: 484 - 525
 # X: 85 + 157*n
