@@ -69,6 +69,7 @@ class AMK:
 
     # Set slider #id to #value (0-300)
     def setSlider(self, id, value):
+        self.sliders[id] = value
         x = SLIDELEFT + SLIDESPACE * id
         y = value * (SLIDEBOT - SLIDETOP)
         y /= 300
@@ -258,6 +259,7 @@ class AMK:
         self.heat = [0]*8
 
         ctr = 0
+        ctr2 = 0
 
         coolers = dict(zip(range(0,8), [0]*8))
         self.coolant = dict(zip(range(0,8), [0]*8))
@@ -279,6 +281,14 @@ class AMK:
                 self.getHeat()
                 self.updateLEDs()
                 ctr = 0
+
+            ctr2 += 1
+            if ctr2 > 2000:
+                print "Sliders: "+str(self.sliders)
+                for id,value in enumerate(self.sliders):
+                    self.setSlider(id, value)
+                ctr2 = 0
+                    
 
             # Look for midi events
             if midi_in.poll():
