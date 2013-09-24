@@ -3,8 +3,5 @@ ArtemisMidiKontrol
 
 Helper application to allow you to use external MIDI input devices as controllers for the Artemis game
 
-To use this with Korg's nanoKONTROL2, you need to do two things:
-
-1. Put the controller into CC mode, by holding down the SET and CYCLE buttons while plugging it in
-2. Change LEDs to 'External' mode instead of internal, using the Korg Kontrol Editor software 
-(downloadable here: http://www.korg.com/SupportPage.aspx?productid=415 )
+This branch has code to work with the Peavey Studiomix controller, thanks to the contributions from CaptainFelix. See this page for more info:
+http://artemis.forumchitchat.com/post?id=6487613&pid=1279657219#post1279657219
